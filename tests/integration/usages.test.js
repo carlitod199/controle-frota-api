@@ -139,6 +139,27 @@ describe('PATCH /usages/:id/finish', () => {
     assert.equal((await finish('123')).status, 400);
   });
 
+  it('recusa corpo na requisição, inclusive a data de término', async () => {
+    const { body: usage } = await startDefault();
+    const { status, body } = await client.request(`/usages/${usage.id}/finish`, {
+      method: 'PATCH',
+      body: { finishedAt: '1999-01-01T00:00:00.000Z' },
+    });
+
+    assert.equal(status, 400);
+    assert.equal(body.error.code, 'VALIDATION_ERROR');
+    assert.equal((await client.request('/usages')).body[0].finishedAt, null);
+  });
+
+  it('aceita um corpo vazio', async () => {
+    const { body: usage } = await startDefault();
+
+    assert.equal(
+      (await client.request(`/usages/${usage.id}/finish`, { method: 'PATCH', body: {} })).status,
+      200,
+    );
+  });
+
   it('responde 409 ao finalizar duas vezes, preservando o primeiro término', async () => {
     const { body: usage } = await startDefault();
     const { body: finished } = await finish(usage.id);

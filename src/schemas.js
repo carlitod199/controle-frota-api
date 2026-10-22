@@ -8,10 +8,10 @@ const nonEmptyText = (max) => z.string().trim().min(1).max(max);
 
 const plate = z
   .string()
-  .transform((value) => value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())
+  .transform((value) => value.replace(/[\s-]/g, '').toUpperCase())
   .refine(
-    (value) => /^[A-Z0-9]{7}$/.test(value),
-    'Placa deve conter 7 caracteres alfanuméricos (ex.: ABC1234 ou ABC1D23)',
+    (value) => /^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(value),
+    'Placa deve seguir o formato ABC1234 ou ABC1D23',
   );
 
 export const idParams = z.strictObject({
@@ -44,3 +44,5 @@ export const usageInput = z.strictObject({
 });
 
 export const usageQuery = z.strictObject({});
+
+export const emptyBody = z.strictObject({}).optional();

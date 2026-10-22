@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { idParams, usageInput, usageQuery } from '../schemas.js';
+import { emptyBody, idParams, usageInput, usageQuery } from '../schemas.js';
 import { finishUsage, listUsages, startUsage } from '../services/usages.js';
 
 export const usagesRouter = Router();
@@ -15,5 +15,6 @@ usagesRouter.post('/', (req, res) => {
 
 usagesRouter.patch('/:id/finish', (req, res) => {
   const { id } = idParams.parse(req.params);
+  emptyBody.parse(req.body);
   res.json(finishUsage(id));
 });

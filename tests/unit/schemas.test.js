@@ -18,9 +18,28 @@ describe('carInput', () => {
     assert.deepEqual(car, { plate: 'ABC1D23', color: 'Preto', brand: 'Toyota' });
   });
 
-  it('recusa placa com quantidade de caracteres diferente de sete', () => {
-    assert.throws(() => carInput.parse({ plate: 'ABC123', color: 'Preto', brand: 'Toyota' }));
-    assert.throws(() => carInput.parse({ plate: 'ABC12345', color: 'Preto', brand: 'Toyota' }));
+  it('aceita os formatos antigo e Mercosul', () => {
+    const parse = (plate) => carInput.parse({ plate, color: 'Preto', brand: 'Toyota' }).plate;
+
+    assert.equal(parse('ABC1234'), 'ABC1234');
+    assert.equal(parse('ABC1D23'), 'ABC1D23');
+    assert.equal(parse('abc 1d23'), 'ABC1D23');
+  });
+
+  it('recusa placas fora do formato de emplacamento', () => {
+    const reject = (plate) =>
+      assert.throws(
+        () => carInput.parse({ plate, color: 'Preto', brand: 'Toyota' }),
+        new RegExp('Placa deve seguir o formato'),
+        `deveria recusar ${JSON.stringify(plate)}`,
+      );
+
+    reject('ABC123');
+    reject('ABC12345');
+    reject('1234567');
+    reject('AAAAAAA');
+    reject('A.B.C.1.2.3.4');
+    reject('1ABC234');
   });
 
   it('exige cor e marca preenchidas', () => {
