@@ -41,10 +41,10 @@ utilização em andamento.
 ## Testes
 
 ```bash
-npm test                 # todos os testes (118)
-npm run test:unit        # apenas unidade (65)
-npm run test:integration # apenas integração (53)
-npm run test:coverage  # relatório de cobertura
+npm test                 # todos os testes (126)
+npm run test:unit        # apenas unidade (66)
+npm run test:integration # apenas integração (60)
+npm run test:coverage    # relatório de cobertura
 ```
 
 Os testes usam o runner nativo do Node (`node:test`), sem framework adicional.
@@ -56,6 +56,10 @@ Os testes usam o runner nativo do Node (`node:test`), sem framework adicional.
 
 Cada teste começa de um armazenamento limpo (`resetStore()` em `beforeEach`), então a ordem de
 execução não influencia o resultado.
+
+O relatório de cobertura exclui os próprios arquivos de teste (`--test-coverage-exclude`) e lista
+apenas os módulos que os testes carregam. `src/server.js` e `src/demoData.js` não aparecem porque
+nenhum teste os importa — ver "Limitações conhecidas".
 
 ## Lint e formatação
 
@@ -199,6 +203,9 @@ curl 'http://localhost:3000/drivers?name=ana'
 Respostas de sucesso devolvem o recurso (ou o array de recursos) diretamente, sem envelope.
 `DELETE` responde `204` sem corpo.
 
+Requisições com corpo precisam declarar `Content-Type: application/json`; outro tipo responde `415`.
+`PATCH /usages/:id/finish` não aceita corpo algum — enviar qualquer campo responde `400`.
+
 Erros sempre usam a mesma estrutura:
 
 ```json
@@ -220,7 +227,7 @@ Erros de validação acrescentam `details`, com um item por problema encontrado:
     "details": [
       {
         "field": "plate",
-        "message": "Placa deve conter 7 caracteres alfanuméricos (ex.: ABC1234 ou ABC1D23)"
+        "message": "Placa deve seguir o formato ABC1234 ou ABC1D23"
       },
       {
         "field": "color",
@@ -235,13 +242,23 @@ Erros de validação acrescentam `details`, com um item por problema encontrado:
 `field` é `null` quando o problema não pertence a um campo específico, como um campo desconhecido
 no corpo da requisição.
 
-| Código             | HTTP | Quando ocorre                                                       |
-| ------------------ | ---- | ------------------------------------------------------------------- |
-| `VALIDATION_ERROR` | 400  | Corpo, parâmetro de rota ou de consulta fora do contrato            |
-| `INVALID_JSON`     | 400  | O corpo enviado não é um objeto JSON válido                         |
-| `NOT_FOUND`        | 404  | Recurso ou rota inexistente                                         |
-| `CONFLICT`         | 409  | A operação é válida, mas conflita com o estado atual                |
-| `INTERNAL_ERROR`   | 500  | Falha inesperada; a mensagem interna fica apenas no log do servidor |
+| Código                   | HTTP | Quando ocorre                                                       |
+| ------------------------ | ---- | ------------------------------------------------------------------- |
+| `VALIDATION_ERROR`       | 400  | Corpo, parâmetro de rota ou de consulta fora do contrato            |
+| `INVALID_JSON`           | 400  | O corpo enviado não é um objeto JSON válido                         |
+| `BAD_REQUEST`            | 400  | Requisição malformada em um nível anterior à validação              |
+| `NOT_FOUND`              | 404  | Recurso ou rota inexistente                                         |
+| `CONFLICT`               | 409  | A operação é válida, mas conflita com o estado atual                |
+| `PAYLOAD_TOO_LARGE`      | 413  | Corpo acima do limite do parser (100 kB)                            |
+| `UNSUPPORTED_MEDIA_TYPE` | 415  | `Content-Type` não é `application/json`                             |
+| `UNSUPPORTED_CHARSET`    | 415  | Charset declarado não é suportado; envie UTF-8                      |
+| `UNSUPPORTED_ENCODING`   | 415  | `Content-Encoding` declarado não é suportado                        |
+| `INTERNAL_ERROR`         | 500  | Falha inesperada; a mensagem interna fica apenas no log do servidor |
+
+Todo erro de cliente responde `4xx`: nenhuma requisição malformada cai no `500`. Os erros levantados
+pelo parser do corpo (tamanho, charset, codificação) são traduzidos pelo mesmo middleware, e
+qualquer outro erro marcado como `expose` com status `4xx` responde `BAD_REQUEST` em vez de vazar
+como falha interna.
 
 ## Regras de negócio
 
@@ -323,8 +340,8 @@ uma responde `201`, a outra `409`, e só um registro é criado.
 ### Exclusão de recursos com histórico
 
 Excluir um automóvel ou motorista referenciado por qualquer utilização — em andamento ou
-encerrada — responde `409`. O histórico fica íntegro e a listagem de utilizações sempre encontra os
-dados relacionados, sem campos nulos nem registros órfãos.
+encerrada — responde `409`. Isso preserva a **integridade referencial**: a listagem de utilizações
+sempre encontra os dados relacionados, sem campos nulos nem registros órfãos.
 
 A alternativa considerada foi exclusão lógica (`deletedAt`), descartada porque obrigaria toda
 leitura a filtrar registros inativos e ainda levantaria a questão de permitir ou não reusar a placa
@@ -334,12 +351,30 @@ Consequência assumida: um automóvel que já rodou uma vez não pode mais ser e
 real o caminho seria arquivar (retirar da frota ativa) em vez de excluir — operação que não foi
 pedida aqui.
 
+### A listagem de utilizações mostra o cadastro atual, não um retrato do passado
+
+`GET /usages` resolve o motorista e o automóvel no momento da consulta. Se a placa de um automóvel
+for alterada por `PUT` depois de uma utilização encerrada, a listagem passa a exibir a placa nova
+para aquele registro antigo.
+
+Isso é consequência direta de guardar apenas `driverId` e `carId` no registro de utilização. A
+política de exclusão acima protege a integridade referencial, **não** um retrato do estado no
+instante da utilização.
+
+Para uma trilha de auditoria exata seria preciso gravar um retrato (nome, placa, cor e marca) dentro
+do registro de utilização no momento do início. Isso foi deixado de fora porque o enunciado pede a
+listagem com "as informações do motorista e do automóvel utilizados", o que um `join` com o cadastro
+atende, e porque o retrato tornaria a exclusão de automóveis e motoristas liberável — mudando a
+política documentada acima. É o próximo passo natural se o requisito for auditoria.
+
 ### Placa
 
-A placa é normalizada (separadores removidos, maiúsculas) e precisa ter 7 caracteres
-alfanuméricos. Isso cobre o formato antigo (`ABC1234`) e o Mercosul (`ABC1D23`) sem acoplar a API às
-regras de emplacamento. A unicidade na frota foi adotada porque a placa é a identidade do veículo no
-mundo real.
+A placa é normalizada (espaços e hifens removidos, maiúsculas) e precisa casar com
+`^[A-Z]{3}\d[A-Z0-9]\d{2}$`, que cobre o formato antigo (`ABC1234`) e o Mercosul (`ABC1D23`).
+Validar a posição de letras e dígitos — e não apenas "7 alfanuméricos" — recusa entradas como
+`1234567` e `AAAAAAA`, que não são placas.
+
+A unicidade na frota foi adotada porque a placa é a identidade do veículo no mundo real.
 
 ### Identificadores
 
@@ -367,5 +402,15 @@ lista inteira como se o filtro tivesse funcionado.
   parcial sobre `car_id` e `driver_id` restrito às utilizações não finalizadas.
 - **Sem autenticação, autorização, paginação ou ordenação configurável** nas listagens; nada disso
   foi pedido. As listas saem na ordem de cadastro.
+- **Não é possível registrar uma utilização retroativa.** `startedAt` é sempre o instante da
+  requisição. Aceitar datas do cliente exigiria trocar a regra de exclusividade de "uma utilização
+  em andamento" por detecção de sobreposição de intervalos, que é um problema bem maior.
+- **`GET /usages` reflete o cadastro atual**, não o estado no momento da utilização. Ver a decisão
+  técnica sobre isso.
+- **As verificações de exclusividade e de histórico varrem todas as utilizações** (`store.hasUsage`
+  é O(n)), o que é adequado para uma frota em memória, mas seria substituído por índices ao migrar
+  para banco de dados.
 - `src/server.js` e `src/demoData.js` não têm testes automatizados (são o ponto de entrada e uma
   carga de dados opcional); foram verificados manualmente subindo a aplicação com e sem `--demo`.
+- Validado em Node 24.18.0 no Windows. `engines` declara Node ≥22 por compatibilidade das APIs
+  usadas, mas não executei a suíte em outras versões ou sistemas operacionais.
