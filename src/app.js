@@ -7,8 +7,18 @@ import { usagesRouter } from './routes/usages.js';
 
 export function createApp() {
   const app = express();
+  app.disable('x-powered-by');
 
+  app.use((req, res, next) => {
+    if (req.get('content-type') && !req.is('application/json')) {
+      return next(
+        new AppError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Content-Type deve ser application/json'),
+      );
+    }
+    next();
+  });
   app.use(express.json());
+
   app.use('/cars', carsRouter);
   app.use('/drivers', driversRouter);
   app.use('/usages', usagesRouter);
