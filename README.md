@@ -266,7 +266,9 @@ como falha interna.
 2. Um motorista só pode ter **uma utilização em andamento** por vez (`409`).
 3. Iniciar uma utilização exige que o automóvel e o motorista existam (`404`).
 4. `startedAt` e `finishedAt` são definidos pelo servidor, em ISO 8601 UTC. O cliente não envia
-   datas — tentar enviá-las resulta em `400`.
+   datas — tentar enviá-las resulta em `400`, tanto no início quanto na finalização. Como as duas
+   datas vêm do mesmo relógio e nessa ordem, `finishedAt >= startedAt` é garantido por construção,
+   não por uma validação que poderia ser contornada; os testes afirmam o invariante.
 5. Uma utilização já finalizada não pode ser finalizada de novo (`409`), e o `finishedAt` original
    é preservado.
 6. Finalizar uma utilização inexistente responde `404`.
