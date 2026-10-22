@@ -2,3 +2,7 @@ node_modules/
 coverage/
 *.log
 .env
+
+# Postman Local View: vinculo com o workspace da conta e variaveis globais
+.postman/
+postman/globals/
