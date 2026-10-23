@@ -38,12 +38,24 @@ A aplicação **não** carrega dados fictícios na inicialização normal. O `np
 apenas para facilitar uma inspeção manual rápida e cadastra dois automóveis, dois motoristas e uma
 utilização em andamento.
 
+## Documentação interativa
+
+Com a aplicação no ar:
+
+- **<http://localhost:3000/docs>** — interface do Swagger, com "Try it out" para disparar as
+  requisições de dentro da página
+- **<http://localhost:3000/openapi.json>** — o documento OpenAPI 3.1, para importar no Postman,
+  Insomnia, Bruno ou gerar um cliente
+
+A combinação `npm run start:demo` + `/docs` é o caminho mais rápido para inspecionar a API: já há
+dados cadastrados para listar e uma utilização em andamento para finalizar.
+
 ## Testes
 
 ```bash
-npm test                 # todos os testes (126)
+npm test                 # todos os testes (135)
 npm run test:unit        # apenas unidade (66)
-npm run test:integration # apenas integração (60)
+npm run test:integration # apenas integração (69)
 npm run test:coverage    # relatório de cobertura
 ```
 
@@ -78,6 +90,7 @@ src/
   app.js                      monta o Express, as rotas e o tratamento de erros
   store.js                    armazenamento em memória (3 Maps) e consulta de utilizações
   schemas.js                  validação e normalização da entrada (Zod)
+  openapi.js                  gera o documento OpenAPI a partir dos schemas
   errors.js                   erro da aplicação com status HTTP e código
   text.js                     normalização de texto usada pelos filtros
   demoData.js                 carga opcional de dados de demonstração
@@ -108,6 +121,11 @@ tests/
 | POST   | `/usages`            | Iniciar utilização                    | 201     |
 | PATCH  | `/usages/:id/finish` | Finalizar utilização                  | 200     |
 | GET    | `/usages`            | Listar utilizações                    | 200     |
+| GET    | `/openapi.json`      | Documento OpenAPI 3.1                 | 200     |
+| GET    | `/docs`              | Interface do Swagger                  | 200     |
+
+Não há rota em `/`. As duas últimas são documentação e, de propósito, não se documentam dentro do
+próprio spec.
 
 ### Parâmetros de consulta
 
@@ -281,16 +299,17 @@ como falha interna.
 
 ### Dependências
 
-Duas em produção e quatro em desenvolvimento, todas MIT.
+Três em produção e quatro em desenvolvimento, todas MIT.
 
-| Pacote       | Versão  | Papel                       | Por quê                                                                                                        |
-| ------------ | ------- | --------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `express`    | 5.3.0   | Framework HTTP              | Opção preferencial do enunciado; a v5 encaminha exceções dos handlers ao middleware de erro sem wrapper.       |
-| `zod`        | 4.6.7   | Validação e normalização    | Concentra validação, normalização e mensagens em um só lugar; `z.locales.ptBR()` deixa as mensagens coerentes. |
-| `eslint`     | 10.13.0 | Lint                        | Apenas as regras `recommended` (lógicas, não estilísticas).                                                    |
-| `prettier`   | 3.9.10  | Formatação                  | Cuida do estilo. Como as regras do ESLint usadas não são estilísticas, `eslint-config-prettier` é dispensável. |
-| `@eslint/js` | 10.0.1  | Preset do ESLint            | Dependência da configuração flat.                                                                              |
-| `globals`    | 17.13.0 | Globais do Node para o lint | Dependência da configuração flat.                                                                              |
+| Pacote               | Versão  | Papel                       | Por quê                                                                                                        |
+| -------------------- | ------- | --------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `express`            | 5.3.0   | Framework HTTP              | Opção preferencial do enunciado; a v5 encaminha exceções dos handlers ao middleware de erro sem wrapper.       |
+| `zod`                | 4.6.7   | Validação e normalização    | Concentra validação, normalização e mensagens em um só lugar; `z.locales.ptBR()` deixa as mensagens coerentes. |
+| `swagger-ui-express` | 5.0.1   | Interface do OpenAPI        | Serve a UI do Swagger sem CDN, para `/docs` funcionar offline. Ver o custo medido abaixo.                      |
+| `eslint`             | 10.13.0 | Lint                        | Apenas as regras `recommended` (lógicas, não estilísticas).                                                    |
+| `prettier`           | 3.9.10  | Formatação                  | Cuida do estilo. Como as regras do ESLint usadas não são estilísticas, `eslint-config-prettier` é dispensável. |
+| `@eslint/js`         | 10.0.1  | Preset do ESLint            | Dependência da configuração flat.                                                                              |
+| `globals`            | 17.13.0 | Globais do Node para o lint | Dependência da configuração flat.                                                                              |
 
 Descartados de propósito:
 
@@ -298,8 +317,24 @@ Descartados de propósito:
   Trazer Vite + esbuild (ou a configuração de ESM do Jest) para um CRUD síncrono não se paga.
 - **Supertest**: substituído por `tests/helpers/client.js`, que sobe a aplicação em porta efêmera
   (`listen(0)`) e usa o `fetch` nativo. São ~20 linhas e os testes falam HTTP de verdade.
-- **Swagger / OpenAPI**: 13 rotas documentadas aqui não justificam a dependência e um segundo
-  artefato que pode divergir da implementação.
+- **`swagger-jsdoc`**: escreveria o spec em comentários JSDoc, duplicando o que os schemas Zod já
+  declaram e criando duas fontes para a mesma regra.
+- **`zod-to-openapi` e similares**: o próprio Zod 4 tem `z.toJSONSchema()`, que é o que o gerador
+  usa.
+
+### O custo do Swagger, medido
+
+`swagger-ui-express` é um invólucro fino sobre `swagger-ui-dist`, que carrega a interface completa:
+
+- `node_modules/swagger-ui-dist` ocupa **12 MB**
+- os pacotes de produção vão de 31 para **70**
+- entra um `@scarf/scarf` transitivo com `postinstall` de telemetria, **bloqueado** pelo
+  `allow-scripts` do npm e deliberadamente não aprovado. `npm ci` funciona com ele bloqueado.
+
+Para quem considerar esse custo alto, a alternativa sem dependência nenhuma é remover
+`swagger-ui-express`, manter o `GET /openapi.json` (que é gerado sem dependências) e abrir o
+documento em qualquer cliente de OpenAPI. A contrapartida é perder a interface embutida que funciona
+sem internet.
 
 ### Organização
 
@@ -321,6 +356,33 @@ serviços assumem dados já validados e cuidam apenas das regras que dependem do
 
 Identificadores no código em inglês (convenção do ecossistema Node); mensagens de erro e
 documentação em português.
+
+### O spec é gerado, não escrito à mão
+
+A objeção usual ao Swagger em um projeto pequeno é criar um segundo artefato que descreve a API e
+silenciosamente se afasta dela. Aqui isso foi atacado em dois pontos, em vez de aceito:
+
+**O corpo das requisições e os parâmetros de consulta vêm dos próprios schemas.** `src/openapi.js`
+chama `z.toJSONSchema()` nos mesmos objetos Zod que as rotas usam para validar. Não há uma segunda
+descrição do `POST /cars` — há a validação, e o spec é uma projeção dela. Adicionar um filtro em
+`carQuery` o faz aparecer na documentação sem tocar no `openapi.js`.
+
+A exceção é a placa: `transform` não é representável em JSON Schema, então o formato é exposto via
+`.meta()` no próprio schema, usando a mesma constante `PLATE_FORMAT` do `refine`.
+
+**O que não pode ser derivado é verificado por teste.** `tests/integration/openapi.test.js`:
+
+- compara as operações documentadas com as rotas realmente registradas nos routers, nas duas
+  direções — uma rota nova sem documentação falha, e uma documentação sobrando também;
+- dispara requisições reais e confere, campo por campo, que `Car`, `Driver`, `Usage` e `Error`
+  descrevem as respostas que a API devolve de fato.
+
+Esses testes foram validados por sabotagem: adicionar um `HEAD /cars/:id` não documentado e renomear
+um campo de resposta fazem a suíte falhar apontando exatamente o desvio.
+
+Resta uma lacuna honesta: os **códigos de status** e as descrições de erro de cada operação são
+escritos à mão e não são conferidos contra a implementação. Um teste que varresse todos os `4xx`
+documentados exigiria montar um cenário por combinação; o custo não se pagou.
 
 ### Nomenclatura das rotas
 

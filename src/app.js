@@ -1,6 +1,8 @@
 import express from 'express';
+import swaggerUi from 'swagger-ui-express';
 import { AppError } from './errors.js';
 import { errorHandler } from './middlewares/errorHandler.js';
+import { openapiDocument } from './openapi.js';
 import { carsRouter } from './routes/cars.js';
 import { driversRouter } from './routes/drivers.js';
 import { usagesRouter } from './routes/usages.js';
@@ -18,6 +20,15 @@ export function createApp() {
     next();
   });
   app.use(express.json());
+
+  app.get('/openapi.json', (req, res) => {
+    res.json(openapiDocument);
+  });
+  app.use(
+    '/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(openapiDocument, { customSiteTitle: 'Controle de Frota — API' }),
+  );
 
   app.use('/cars', carsRouter);
   app.use('/drivers', driversRouter);

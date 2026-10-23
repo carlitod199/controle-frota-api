@@ -7,6 +7,7 @@ export async function createClient() {
   const base = `http://127.0.0.1:${server.address().port}`;
 
   return {
+    base,
     async request(path, { method = 'GET', body, rawBody, headers } = {}) {
       const payload = rawBody ?? (body === undefined ? undefined : JSON.stringify(body));
       const response = await fetch(base + path, {
