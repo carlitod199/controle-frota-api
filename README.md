@@ -4,15 +4,12 @@ WebAPI REST para controlar a utilização de automóveis por motoristas: cadastr
 motoristas, registro de início e término de utilizações e consulta do histórico com os dados do
 motorista e do automóvel.
 
-A regra central da aplicação é a exclusividade: um automóvel não pode ser usado por dois motoristas
-ao mesmo tempo, e um motorista não pode usar dois automóveis ao mesmo tempo.
 
 ## Requisitos
 
 - Node.js 22 ou superior (desenvolvido e validado em v24.18.0)
 - npm 10 ou superior (validado em 11.16.0)
 
-Nenhum banco de dados é necessário: os dados ficam em memória enquanto o processo está no ar.
 
 ## Instalação
 
@@ -33,10 +30,6 @@ A porta pode ser alterada com a variável `PORT`:
 ```bash
 PORT=4000 npm start
 ```
-
-A aplicação **não** carrega dados fictícios na inicialização normal. O `npm run start:demo` existe
-apenas para facilitar uma inspeção manual rápida e cadastra dois automóveis, dois motoristas e uma
-utilização em andamento.
 
 ## Documentação interativa
 
@@ -124,8 +117,7 @@ tests/
 | GET    | `/openapi.json`      | Documento OpenAPI 3.1                 | 200     |
 | GET    | `/docs`              | Interface do Swagger                  | 200     |
 
-Não há rota em `/`. As duas últimas são documentação e, de propósito, não se documentam dentro do
-próprio spec.
+
 
 ### Parâmetros de consulta
 
@@ -202,7 +194,7 @@ curl -X POST http://localhost:3000/usages \
 curl -X PATCH http://localhost:3000/usages/c38322c9-.../finish
 ```
 
-A requisição não tem corpo: `finishedAt` é definido pelo servidor.
+
 
 ### Listar utilizações
 
@@ -222,7 +214,7 @@ Respostas de sucesso devolvem o recurso (ou o array de recursos) diretamente, se
 `DELETE` responde `204` sem corpo.
 
 Requisições com corpo precisam declarar `Content-Type: application/json`; outro tipo responde `415`.
-`PATCH /usages/:id/finish` não aceita corpo algum — enviar qualquer campo responde `400`.
+`PATCH /usages/:id/finish` não aceita corpo algum enviar qualquer campo responde `400`.
 
 Erros sempre usam a mesma estrutura:
 
@@ -284,7 +276,7 @@ como falha interna.
 2. Um motorista só pode ter **uma utilização em andamento** por vez (`409`).
 3. Iniciar uma utilização exige que o automóvel e o motorista existam (`404`).
 4. `startedAt` e `finishedAt` são definidos pelo servidor, em ISO 8601 UTC. O cliente não envia
-   datas — tentar enviá-las resulta em `400`, tanto no início quanto na finalização. Como as duas
+   datas e tentar enviá-las resulta em `400`, tanto no início quanto na finalização. Como as duas
    datas vêm do mesmo relógio e nessa ordem, `finishedAt >= startedAt` é garantido por construção,
    não por uma validação que poderia ser contornada; os testes afirmam o invariante.
 5. Uma utilização já finalizada não pode ser finalizada de novo (`409`), e o `finishedAt` original
